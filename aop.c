@@ -24,7 +24,6 @@
 #include "ext/standard/php_string.h"
 #include "Zend/zend_operators.h"
 
-
 ZEND_DECLARE_MODULE_GLOBALS(aop)
 
 
@@ -44,8 +43,9 @@ static zend_function_entry aop_functions[] =
     ZEND_FE(aop_add_around, arginfo_aop_add)
     ZEND_FE(aop_add_before,  arginfo_aop_add)
     ZEND_FE(aop_add_after, arginfo_aop_add)
-    ZEND_FE(aop_add_final, NULL)
-    ZEND_FE(aop_add_exception, NULL)
+    //ZEND_FE(aop_add_final, NULL)
+    //ZEND_FE(aop_add_exception, NULL)
+    ZEND_FE(aop_add_write_property, NULL)
     {NULL, NULL, NULL}
 };
 
@@ -162,9 +162,61 @@ PHP_RINIT_FUNCTION(aop)
 {
     aop_g(count_pcs)=0;
     aop_g(overloaded)=0;
+    aop_g(count_write_property)=0;
+    aop_g(count_read_property)=0;
     return SUCCESS;
 }
 
+ZEND_DLEXPORT void zend_std_write_property_overload(zval *object, zval *member, zval *value, const zend_literal *key TSRMLS_DC) {
+    if (aop_g(count_write_property)>0) {
+        int i;
+        for (i=0;i<aop_g(count_write_property);i++) {
+            property_pointcut *current_pc = aop_g(property_pointcuts)[i];
+            if (current_pc->property_name[0]!='*') {
+                if (Z_STRLEN_P(member)!=current_pc->property_name_length || strcmp(Z_STRVAL_P(member),current_pc->property_name)) {
+                    continue;
+                }
+            }
+            char *current_class_name;
+            zend_class_entry *ce;
+            ce = Z_OBJCE_P(object);
+            current_class_name = ce->name;
+            if (current_pc->class_name_length!=strlen(current_class_name) || strcmp(current_pc->class_name, current_class_name)) {
+                continue;
+            }
+
+            
+            zval **args[3], *zret_ptr;
+            zend_fcall_info fci;
+            zend_fcall_info_cache fcic= { 0, NULL, NULL, NULL, NULL };
+            args[0] = &object;
+            args[1] = &member; 
+            args[2] = &value;
+            zret_ptr=NULL;
+            fci.param_count= 3;
+            fci.size= sizeof(fci);
+            fci.function_table= EG(function_table);
+            fci.function_name= current_pc->callback;
+            fci.symbol_table= NULL;
+            fci.retval_ptr_ptr= &zret_ptr;
+            fci.params = (zval ***)args;
+            fci.object_ptr= NULL;
+            fci.no_separation= 0;
+            if (zend_call_function(&fci, &fcic TSRMLS_CC) == FAILURE) {
+                zend_error(E_ERROR, "Problem in AOP Callback");
+            }
+
+        }
+    }
+    zend_std_write_property(object,member,value,key TSRMLS_CC);
+}
+
+ZEND_DLEXPORT zval * zend_std_read_property_overload(zval *object, zval *member, int type, const zend_literal *key TSRMLS_DC) {
+    if (aop_g(count_read_property)>0) {
+        php_printf("read property %ss\n", Z_STRVAL_P(member));
+    }
+    return zend_std_read_property(object,member,type,key TSRMLS_CC);
+}
 PHP_MINIT_FUNCTION(aop)
 {
     zend_class_entry ce;
@@ -189,7 +241,8 @@ PHP_MINIT_FUNCTION(aop)
     zend_declare_class_constant_long (aop_const_class_entry,"AFTER",sizeof("AFTER")-1,(long)3 TSRMLS_CC);
 
 
-
+    std_object_handlers.write_property = zend_std_write_property_overload;
+    //std_object_handlers.read_property = zend_std_read_property_overload;
 
     _zend_execute = zend_execute;
     zend_execute  = aop_execute;
@@ -369,6 +422,35 @@ static void parse_pointcut (pointcut **pc) {
     }
 }
 
+
+ZEND_FUNCTION(aop_add_write_property)
+{
+    zval *callback;
+    zval *class_name;
+    zval *property_name;
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zzz", &class_name ,&property_name, &callback) == FAILURE) {
+        zend_error(E_ERROR, "Bad params");
+        return;
+    }
+    property_pointcut *pc;
+    int count;
+    aop_g(count_write_property)++;
+    count=aop_g(count_write_property)-1;
+    if (aop_g(count_write_property)==1) {
+        aop_g(property_pointcuts) = emalloc(sizeof(property_pointcut *));
+    } else {
+        aop_g(property_pointcuts) = erealloc(aop_g(property_pointcuts),aop_g(count_write_property)*sizeof(property_pointcut *));
+    }
+    pc = emalloc(sizeof(property_pointcut));
+    pc->class_name_length = Z_STRLEN_P(class_name);
+    pc->class_name = estrndup(Z_STRVAL_P(class_name), pc->class_name_length);
+    pc->property_name_length = Z_STRLEN_P(property_name);
+    pc->property_name = estrndup(Z_STRVAL_P(property_name), pc->property_name_length);
+    Z_ADDREF_P(callback);
+    pc->callback = callback;
+    aop_g(property_pointcuts)[count]=pc;
+
+}
 
 ZEND_FUNCTION(aop_add_around)
 {

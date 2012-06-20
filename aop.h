@@ -70,6 +70,14 @@ typedef struct {
     instance_of_pointcut *current_pc;
 }  aopTriggeredJoinpoint_object;
 
+typedef struct {
+    char *class_name;
+    int class_name_length;
+    char *property_name;
+    int property_name_length;
+    zval *callback;
+} property_pointcut;
+
 #ifdef ZTS
 #include "TSRM.h"
 #endif
@@ -78,7 +86,9 @@ ZEND_BEGIN_MODULE_GLOBALS(aop)
 pointcut **pcs;
 int count_pcs;
 int overloaded;
-
+int count_write_property;
+property_pointcut **property_pointcuts;
+int count_read_property;
 
 ZEND_END_MODULE_GLOBALS(aop)
 
@@ -95,8 +105,9 @@ PHP_RINIT_FUNCTION(aop);
 ZEND_FUNCTION(aop_add_around);
 ZEND_FUNCTION(aop_add_before);
 ZEND_FUNCTION(aop_add_after);
-ZEND_FUNCTION(aop_add_final);
-ZEND_FUNCTION(aop_add_exception);
+ZEND_FUNCTION(aop_add_write_property);
+//ZEND_FUNCTION(aop_add_final);
+//ZEND_FUNCTION(aop_add_exception);
 
 
 extern zend_module_entry aop_module_entry;
@@ -121,4 +132,7 @@ static char * get_method_part (char *str);
 void aop_execute_global (int internal, zend_op_array *ops,zend_execute_data *current_execute_data, int return_value_used TSRMLS_DC);
 static int pointcut_match_zend_class_entry (pointcut *pc, zend_class_entry *ce);
 static int pointcut_match_zend_function (pointcut *pc, zend_function *curr_func);
+
+//ZEND_API zval *zend_std_read_property(zval *object, zval *member, int type, const zend_literal *key TSRMLS_DC);
+
 
