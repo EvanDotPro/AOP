@@ -177,7 +177,7 @@ ZEND_DLEXPORT void zend_std_write_property_overload(zval *object, zval *member, 
         for (i=0;i<aop_g(count_write_property);i++) {
             property_pointcut *current_pc = aop_g(property_pointcuts)[i];
             if (current_pc->property_name[0]!='*') {
-                if (Z_STRLEN_P(member)!=current_pc->property_name_length || strcmp(Z_STRVAL_P(member),current_pc->property_name)) {
+                if (!strcmp_with_joker(current_pc->property_name,Z_STRVAL_P(member))) {
                     continue;
                 }
             }
