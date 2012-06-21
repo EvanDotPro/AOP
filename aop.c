@@ -185,7 +185,10 @@ ZEND_DLEXPORT void zend_std_write_property_overload(zval *object, zval *member, 
             zend_class_entry *ce;
             ce = Z_OBJCE_P(object);
             current_class_name = ce->name;
-            if (current_pc->class_name_length!=strlen(current_class_name) || strcmp(current_pc->class_name, current_class_name)) {
+            int class_jok = 0;
+            class_jok = (strchr(current_pc->class_name, '*')!=NULL);
+
+            if (!pointcut_match_zend_class_entry(current_pc->class_name, class_jok, ce)) {
                 continue;
             }
 
@@ -893,18 +896,19 @@ static int get_scope (char *str) {
     return toReturn;
 }
 
-static int pointcut_match_class_name (pointcut *pc, char * class_name) {
-    if (pc->class_jok) {
-        char *temp_pc_class_name = pc->class_name;
+//static int pointcut_match_class_name (pointcut *pc, char * class_name) {
+static int pointcut_match_class_name (char *select_class_name, int with_jok, char * class_name) {
+    if (with_jok) {
+        char *temp_pc_class_name = select_class_name;
         char *temp_class_name = class_name;
-        char *pos = strrchr(pc->class_name, '\\');
+        char *pos = strrchr(select_class_name, '\\');
         char *pos_class;
         int start = 1;
         char *started;
         char *started_class;
         int size;
         if (pos==NULL) {
-          return strcmp_with_joker(pc->class_name, class_name);
+          return strcmp_with_joker(select_class_name, class_name);
         }
         pos_class = strrchr(class_name, '\\');
         if (pos_class==NULL) {
@@ -970,30 +974,30 @@ static int pointcut_match_class_name (pointcut *pc, char * class_name) {
         return 0;
     } else {
         
-        return !strcasecmp(pc->class_name, class_name);
+        return !strcasecmp(select_class_name, class_name);
     }
 }
 
-static int pointcut_match_zend_class_entry (pointcut *pc, zend_class_entry *ce) {
+static int pointcut_match_zend_class_entry (char *pc_class_name, int pc_class_jok, zend_class_entry *ce) {
     int i;
-    if (pointcut_match_class_name(pc, (char*) ce->name)) {
+    if (pointcut_match_class_name(pc_class_name,pc_class_jok, (char*) ce->name)) {
         return 1;
     }
     for (i=0;i<(int) ce->num_interfaces;i++) {
-        if (pointcut_match_class_name(pc, (char*) ce->interfaces[i]->name)) {
+        if (pointcut_match_class_name(pc_class_name, pc_class_jok, (char*) ce->interfaces[i]->name)) {
             return 1;
         }
     }
     #if ZEND_MODULE_API_NO >= 20100525
     for (i=0;i<(int)ce->num_traits;i++) {
-        if (pointcut_match_class_name(pc, (char*) ce->traits[i]->name)) {
+        if (pointcut_match_class_name(pc_class_name, pc_class_jok, (char*) ce->traits[i]->name)) {
             return 1;
         }
     }
     #endif
     ce = ce->parent;
     while (ce!=NULL) {
-        if (pointcut_match_class_name(pc, (char*) ce->name)) {
+        if (pointcut_match_class_name(pc_class_name, pc_class_jok, (char*) ce->name)) {
             return 1;
         }
         ce = ce->parent;
@@ -1044,7 +1048,7 @@ static int pointcut_match_zend_function (pointcut *pc, zend_function *curr_func)
         }
     }
     if (ce!=NULL) {
-        return pointcut_match_zend_class_entry(pc, ce);
+        return pointcut_match_zend_class_entry(pc->class_name, pc->class_jok, ce);
     }
     if (pc->class_name==NULL) {
         return 1;

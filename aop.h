@@ -130,7 +130,7 @@ static int get_scope (char *str);
 static char* get_class_part (char *str);
 static char * get_method_part (char *str);
 void aop_execute_global (int internal, zend_op_array *ops,zend_execute_data *current_execute_data, int return_value_used TSRMLS_DC);
-static int pointcut_match_zend_class_entry (pointcut *pc, zend_class_entry *ce);
+static int pointcut_match_zend_class_entry (char *pc_class_name, int pc_class_jok, zend_class_entry *ce);
 static int pointcut_match_zend_function (pointcut *pc, zend_function *curr_func);
 
 //ZEND_API zval *zend_std_read_property(zval *object, zval *member, int type, const zend_literal *key TSRMLS_DC);
