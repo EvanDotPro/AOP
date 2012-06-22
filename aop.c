@@ -167,6 +167,25 @@ PHP_RINIT_FUNCTION(aop)
     return SUCCESS;
 }
 
+
+
+
+#if ZEND_MODULE_API_NO >= 20100525
+ZEND_DLEXPORT zval * zend_std_read_property_overload(zval *object, zval *member, int type, const zend_literal *key TSRMLS_DC) {
+#else
+ZEND_DLEXPORT zval * zend_std_read_property_overload(zval *object, zval *member, int type TSRMLS_DC) {
+#endif
+
+
+
+
+#if ZEND_MODULE_API_NO >= 20100525
+    return zend_std_read_property(object, member, type, key TSRMLS_CC);
+#else
+    return zend_std_read_property(object, member, type TSRMLS_CC);
+#endif
+}
+
 #if ZEND_MODULE_API_NO >= 20100525
 ZEND_DLEXPORT void zend_std_write_property_overload(zval *object, zval *member, zval *value, const zend_literal *key TSRMLS_DC) {
 #else
@@ -245,9 +264,12 @@ PHP_MINIT_FUNCTION(aop)
     zend_declare_class_constant_long (aop_const_class_entry,"BEFORE",sizeof("BEFORE")-1,(long)2 TSRMLS_CC);
     zend_declare_class_constant_long (aop_const_class_entry,"AFTER",sizeof("AFTER")-1,(long)3 TSRMLS_CC);
 
-
+#if ZEND_MODULE_API_NO < 20100525
+    zend_std_write_property = std_object_handlers.write_property;
+#endif
     std_object_handlers.write_property = zend_std_write_property_overload;
-    //std_object_handlers.read_property = zend_std_read_property_overload;
+    zend_std_read_property = std_object_handlers.read_property;
+    std_object_handlers.read_property = zend_std_read_property_overload;
 
     _zend_execute = zend_execute;
     zend_execute  = aop_execute;
